@@ -75,11 +75,7 @@ Notation " 'opening p " := (Opening p)
 
 
 
-(* Correctnes *)
-
-(* Definition chInputCom p := Key p × Value p.
-Notation " 'inputCom p " := (chInputCom p)
-     (in custom pack_type at level 2, p constr). *)
+(* ---- Correctnes ---- *)
 
 Definition CORRECTNESS := 5%N.
 
@@ -117,7 +113,8 @@ Definition Adv_Correct p (ε : adversary (ICorrect_com p) → Axioms.R) :=
   ∀ A : adversary (ICorrect_com p), AdvFor (Correct p) A <= ε A.
 
 
-(* Hiding *) 
+
+(* ---- Hiding ---- *) 
 
 Definition COMMITMENT := 2%N.
 
@@ -156,7 +153,8 @@ Definition Adv_Hiding p (ε : adversary (ICommitment p) → Axioms.R) :=
   ∀ A : adversary (ICommitment p), AdvFor (Hiding p) A <= ε A.
 
 
-(* Binding *) 
+
+(* ---- Binding ---- *) 
 
 Definition chBinding p := 'commitment p × 'value p × 'opening p × 'value p × 'opening p.
 
@@ -250,7 +248,7 @@ Definition sig_to_com (p : raw_sigCom) : raw_com :=
   |}.
 
 
- (* CORRECTNESS RELATED TO COMPLETENESS *)
+(* ---- CORRECTNESS RELATED TO COMPLETENESS ---- *)
 
 (* Correct_sim i sigma filen er det samme som correct_real i com-filen
     Correct ideal er det samme i begge filer. 
@@ -270,7 +268,6 @@ Definition Call_correct_sig (p: raw_sigCom) :
             #assert p.(R) h w ;;
             b ← COR (h, w, v) ;;
             ret b
-            
           }
   ].
 
@@ -339,7 +336,7 @@ Proof.
 Admitted.
 
 
-(* HIDING RELATED TO SHVZK *)
+(* ---- HIDING RELATED TO SHVZK ---- *)
 
 (* Reduction module with input *)
 
@@ -380,35 +377,38 @@ Definition Call_SHVZK_sam (p: raw_sigCom) :
 
 (* Hiding_real and SHVZK_ideal perf ind. *)
 
-Lemma Hiding_real_SHVZK_ideal_perf p (A : adversary (ICommitment (sig_to_com p)))
-  : Adv (Hiding_real (sig_to_com p)) (Call_SHVZK_inp p ∘ SHVZK_ideal p) A = 0.
+Lemma Hiding_real_SHVZK_ideal_perf p : 
+  perfect (ICommitment (sig_to_com p)) 
+    (Hiding_real (sig_to_com p)) (Call_SHVZK_inp p ∘ SHVZK_ideal p).
 Proof.
-    rewrite -share_link_sep_link; [| nssprove_separate_solve ].
-    eapply Adv_perf; [| exact module_valid ].
+    nssprove_share.
+    eapply prove_perfect.
     eapply eq_rel_perf_ind_eq.
     simplify_eq_rel e.
     ssprove_code_simpl; rewrite cast_fun_K.
-    ssprove_code_simpl.
     apply rsame_head => w.
     apply rsame_head => h.
     ssprove_code_simpl_more.
     ssprove_sync_eq => H.
     apply rsame_head => sampl.
+    ssprove_code_simpl_more.
     rewrite H //=.
     ssprove_code_simpl.
-    apply rsame_head => open.
-    destruct open.
+    apply rsame_head => sim.
+    destruct sim.
     apply r_ret. auto.
 Qed.
 
 
 (* Hiding_ideal and SHVZK_ideal perf ind. *)
 
-Lemma Hiding_ideal_SHVZK_ideal_perf p (A : adversary (ICommitment (sig_to_com p)))
-  : Adv (Call_SHVZK_sam p ∘ SHVZK_ideal p) (Hiding_ideal (sig_to_com p)) A = 0.
+
+Lemma Hiding_ideal_SHVZK_ideal_perf p : 
+  perfect (ICommitment (sig_to_com p)) 
+    (Call_SHVZK_sam p ∘ SHVZK_ideal p) (Hiding_ideal (sig_to_com p)).
 Proof.
-    rewrite -share_link_sep_link; [| nssprove_separate_solve ].
-    eapply Adv_perf; [| exact module_valid ].
+    nssprove_share.
+    eapply prove_perfect.
     eapply eq_rel_perf_ind_eq.
     simplify_eq_rel e.
     ssprove_code_simpl; rewrite cast_fun_K.
@@ -416,23 +416,25 @@ Proof.
     apply rsame_head => h.
     ssprove_code_simpl_more.
     ssprove_sync_eq => H.
-    apply rsame_head => u.
+    apply rsame_head => sampl.
     ssprove_code_simpl_more.
     rewrite H //=.
     ssprove_code_simpl.
-    apply rsame_head => open.
-    destruct open.
+    apply rsame_head => sim.
+    destruct sim.
     apply r_ret. auto.
 Qed.
 
 
 
-Lemma Red_perf p (A : adversary (ICommitment (sig_to_com p)))
-  : (forall h w a s e, NoFail (response p h w a s e)) -> Adv (Call_SHVZK_inp p ∘ SHVZK_real p) (Call_SHVZK_sam p ∘ SHVZK_real p) A = 0.
+Lemma Red_perf (p: raw_sigCom) :
+  (forall h w a s e, NoFail (response p h w a s e)) -> 
+  perfect (ICommitment (sig_to_com p)) 
+      (Call_SHVZK_inp p ∘ SHVZK_real p) (Call_SHVZK_sam p ∘ SHVZK_real p).
 Proof.
     intros.
-    do 2 (rewrite -share_link_sep_link; [| nssprove_separate_solve ]).
-    eapply Adv_perf; [| exact module_valid ].
+    do 2 nssprove_share.
+    eapply prove_perfect.
     eapply eq_rel_perf_ind_eq.
     simplify_eq_rel e'.
     ssprove_code_simpl; rewrite cast_fun_K.
@@ -491,7 +493,7 @@ Qed.
 
 
 
-(* BINDING RELATED TO SOUNDNESS *)
+(* ---- BINDING RELATED TO SOUNDNESS ---- *)
 
 Definition Call_Soundness (p: raw_sigCom) :
 
