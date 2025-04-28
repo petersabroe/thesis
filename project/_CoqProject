@@ -1,0 +1,4 @@
+-R ../NominalSSProve/nominal-ssprove/theories NominalSSP
+-R theories Project
+theories/ElGamal.v
+theories/Com.v

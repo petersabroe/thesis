@@ -1,0 +1,6 @@
+[submodule "NominalSSProve/nominal-ssprove"]
+	path = NominalSSProve/nominal-ssprove
+	url = https://github.com/MarkusKL/nominal-ssprove
+[submodule "SSProve/ssprove"]
+	path = SSProve/ssprove
+	url = https://github.com/petersabroe/ssprove
