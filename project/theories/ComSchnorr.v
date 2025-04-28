@@ -39,7 +39,7 @@ Proof. apply /card_gt0P. by exists g. Qed.
 Proof. apply /card_gt0P. by exists 0. Qed.
 
 
-Definition raw_schnorrCom : raw_sigCom := 
+Definition raw_schnorrExt : raw_sigExt := 
   {| p := raw_schnorr
    ; sampl_wit := 
      {code
@@ -57,27 +57,18 @@ Definition raw_schnorrCom : raw_sigCom :=
      }
   |}.
  
-Definition raw_comSchnorr : raw_com := sig_to_com raw_schnorrCom.
+Definition raw_comSchnorr : raw_com := sig_to_com raw_schnorrExt.
 
 
 Theorem comSchnorr_Correct : Adv_Correct raw_comSchnorr (λ _, 0).
 Proof.
   intros A.
-  apply eq_ler.
-  eapply Adv_perf; [| apply module_valid ].
-  apply eq_rel_perf_ind_eq.
-  simplify_eq_rel v.
-  ssprove_code_simpl_more.
-  ssprove_swap_lhs 1%N.
-  apply r_const_sample_L => [|w].
-  1: apply LosslessOp_uniform.
-  apply r_const_sample_L => [|co].
-  1: apply LosslessOp_uniform.
-  do 2 rewrite otf_fto.
-  rewrite eq_refl. simpl.
-  rewrite -mulgA. rewrite mulVg. rewrite mulg1. rewrite eq_refl. simpl.
-  apply r_ret. auto.
-
+  eapply le_trans.
+  - apply Com_Correct_Correct.
+  - rewrite -(add0r 0).
+    apply lerD.
+    + apply: (schnorr_SHVZK {adversary (Transcript raw_schnorr); (A ∘ Call_correct_sig raw_schnorrExt ∘ Verify_call raw_schnorrExt)}).
+    + apply: (schnorr_Correct {adversary (ICorrect raw_schnorr); (A ∘ Call_correct_sig raw_schnorrExt)}).
 Qed.
 
 
@@ -90,8 +81,8 @@ Proof.
     intros. apply NoFail_ret.
   - rewrite -(add0r 0).
     apply lerD.
-    + apply: (schnorr_SHVZK {adversary (Transcript raw_schnorr); (A ∘ Call_SHVZK_inp raw_schnorrCom)}).
-    + apply: (schnorr_SHVZK {adversary (Transcript raw_schnorr); (A ∘ Call_SHVZK_sam raw_schnorrCom)}).
+    + apply: (schnorr_SHVZK {adversary (Transcript raw_schnorr); (A ∘ Call_SHVZK_inp raw_schnorrExt)}).
+    + apply: (schnorr_SHVZK {adversary (Transcript raw_schnorr); (A ∘ Call_SHVZK_sam raw_schnorrExt)}).
 Qed.
 
 

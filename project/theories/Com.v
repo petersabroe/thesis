@@ -156,7 +156,7 @@ Definition Adv_Hiding p (ε : adversary (ICommitment p) → Axioms.R) :=
 
 (* ---- Binding ---- *) 
 
-Definition chBinding p := 'commitment p × 'value p × 'opening p × 'value p × 'opening p.
+Definition chBinding p := 'key p × 'commitment p × 'value p × 'opening p × 'value p × 'opening p.
 
 Notation " 'binding p " := (chBinding p) (in custom pack_type at level 2, p constr).
 
@@ -168,27 +168,26 @@ Definition IBinding p := [interface #val #[ BINDING ] : ('binding p) → 'bool ]
     Definition Binding_real p : 
         game (IBinding p) := 
         [module no_locs ;
-            #def #[ BINDING ] ('(c, v, o, v', o') : 'binding p) : 'bool
+            #def #[ BINDING ] ('(k, c, v, o, v', o') : 'binding p) : 'bool
             { 
-              k ← p.(setup) ;;
               b ← p.(verify) k c v o ;;
               b' ← p.(verify) k c v' o' ;; 
               #assert b ;;
               #assert b' ;;
               #assert (v != v') ;;
-              @ret 'bool true 
+              @ret 'bool true
+
             }
         ].
 
     Definition Binding_ideal p :
          game (IBinding p) := 
         [module no_locs ;
-            #def #[ BINDING ] ('(c, v, o, v', o') : 'binding p) : 'bool
+            #def #[ BINDING ] ('(k, c, v, o, v', o') : 'binding p) : 'bool
             {
-              k ← p.(setup) ;;
               p.(verify) k c v o ;;
               p.(verify) k c v' o' ;; 
-              @ret 'bool true
+              @ret 'bool false
             }
         ].
 
@@ -205,7 +204,7 @@ Definition Adv_Binding p (ε : adversary (IBinding p) → Axioms.R) :=
 (* ------------------------------------- *)
 
 
-Record raw_sigCom := 
+Record raw_sigExt := 
   { p :> raw_sigma 
   ; sampl_wit : 
       code no_locs [interface] (Witness p) 
@@ -218,7 +217,7 @@ Record raw_sigCom :=
   }.
 
 
-Definition sig_to_com (p : raw_sigCom) : raw_com :=
+Definition sig_to_com (p : raw_sigExt) : raw_com :=
   {| Key := p.(Statement)
    ; Value := p.(Challenge) 
    ; Commitment := p.(Message) 
@@ -250,14 +249,9 @@ Definition sig_to_com (p : raw_sigCom) : raw_com :=
 
 (* ---- CORRECTNESS RELATED TO COMPLETENESS ---- *)
 
-(* Correct_sim i sigma filen er det samme som correct_real i com-filen
-    Correct ideal er det samme i begge filer. 
-    Derfor: Adv_Correct i com = Adv_Correct_Sim i sigma. *)
+(* Reduction module from Correctness of commitment scheme to Correctness of sigma *)
 
-
-(* Reduction module from Correctness of commitment scheme to correctness of sigma *)
-
-Definition Call_correct_sig (p: raw_sigCom) :
+Definition Call_correct_sig (p: raw_sigExt) :
   module (ICorrect p) (ICorrect_com (sig_to_com p)) := 
   [module no_locs ;
       #def #[ CORRECTNESS ] (v : 'value (sig_to_com p)) : 'bool
@@ -312,35 +306,29 @@ Proof.
         apply r_ret. auto.
     - Admitted.
  
-(* Lemma Adver_ind :
-  ∀ (p: raw_sigCom) (A1: adversary (ICorrect_com (sig_to_com p))) (A2: adversary (ICorrect p)),
-    (A1 ∘ Call_correct_sig p) = A2.
-Proof.
-  intros. nssprove_share. rewrite <- eq_raw_module. destruct A1. destruct A2. destruct (Call_correct_sig p0).
-  rewrite -trimmed_link. *)
 
 Theorem Com_Correct_Correct:
-  ∀ (p : raw_sigCom) ,
+  ∀ (p : raw_sigExt) ,
   Adv_Correct (sig_to_com p) (λ A,
     AdvFor (SHVZK p) (A ∘ Call_correct_sig p ∘ Verify_call p) + AdvFor (Sigma.Correct p) (A ∘ Call_correct_sig p)).
 Proof.
   intros p A.
   nssprove_adv_trans (Call_correct_sig p ∘ Correct_sim p)%sep.
- (* hvorfor to adversaries *)
   simpl. rewrite Adv_sym. rewrite Correct_real_sim_perf.
   rewrite GRing.add0r.
   nssprove_adv_trans (Call_correct_sig p ∘ Sigma.Correct_ideal p)%sep.
   rewrite Correct_ideal_sim_perf. rewrite GRing.addr0.
-  rewrite Adv_sep_link.
-(*   eapply (Adv_Correct_sim p (A ∘ Call_correct_sig p)). *)
-Admitted.
+  rewrite Adv_sep_link. rewrite /AdvFor (sep_link_assoc A).
+  apply (Adv_Correct_sim p {adversary (ICorrect p) ; A ∘ Call_correct_sig p}).
+Qed.
+
 
 
 (* ---- HIDING RELATED TO SHVZK ---- *)
 
 (* Reduction module with input *)
 
-Definition Call_SHVZK_inp (p: raw_sigCom) :
+Definition Call_SHVZK_inp (p: raw_sigExt) :
   module (Transcript p) (ICommitment (sig_to_com p)) := 
   [module no_locs ;
       #def #[ COMMITMENT ] (v : 'value (sig_to_com p)) : ('commitment (sig_to_com p))
@@ -358,7 +346,7 @@ Definition Call_SHVZK_inp (p: raw_sigCom) :
 
 (* Reduction module with sampling *)
 
-Definition Call_SHVZK_sam (p: raw_sigCom) :
+Definition Call_SHVZK_sam (p: raw_sigExt) :
   module (Transcript p) (ICommitment (sig_to_com p)) := 
   [module no_locs ;
       #def #[ COMMITMENT ] (v : 'value (sig_to_com p)) : ('commitment (sig_to_com p))
@@ -427,7 +415,7 @@ Qed.
 
 
 
-Lemma Red_perf (p: raw_sigCom) :
+Lemma Red_perf (p: raw_sigExt) :
   (forall h w a s e, NoFail (response p h w a s e)) -> 
   perfect (ICommitment (sig_to_com p)) 
       (Call_SHVZK_inp p ∘ SHVZK_real p) (Call_SHVZK_sam p ∘ SHVZK_real p).
@@ -459,18 +447,12 @@ Qed.
 (* Hiding Theorem *)
 
 Theorem Com_hiding_SHVZK :
-  ∀ (p : raw_sigCom) ,
+  ∀ (p : raw_sigExt) ,
   (forall h w a s e, NoFail (response p h w a s e)) ->
   Adv_Hiding (sig_to_com p) (λ A,
     AdvFor (SHVZK p) (A ∘ Call_SHVZK_inp p) +
     AdvFor (SHVZK p) (A ∘ Call_SHVZK_sam p)).
 
-(* Theorem Com_hiding_SHVZK :
-  ∀ (p : _) (A: adversary ((ICommitment (sig_to_com p)))),
-  (forall h w a s e, NoFail (response p h w a s e)) ->
-  AdvFor (Hiding (sig_to_com p)) A <=
-    AdvFor (SHVZK p) (A ∘ Call_SHVZK_inp p) +
-    AdvFor (SHVZK p) (A ∘ Call_SHVZK_sam p). *)
 Proof.
   intros p H A.
   nssprove_adv_trans (Call_SHVZK_inp p ∘ SHVZK_ideal p)%sep.
@@ -495,13 +477,12 @@ Qed.
 
 (* ---- BINDING RELATED TO SOUNDNESS ---- *)
 
-Definition Call_Soundness (p: raw_sigCom) :
+Definition Call_Soundness (p: raw_sigExt) :
 
   module (Soundness p) (IBinding (sig_to_com p)) := 
   [module no_locs ;
-      #def #[ BINDING ] ('(c, v, o, v', o') : 'binding (sig_to_com p)) : 'bool
+      #def #[ BINDING ] ('(k, c, v, o, v', o') : 'binding (sig_to_com p)) : 'bool
           {
-            k ← (sig_to_com p).(setup) ;;
             #import {sig #[ SOUNDNESS ] : ('soundness p) → 'bool} as SOUND ;;
             'b ← SOUND ((k, c), ((v, o), (v', o'))) ;;
             ret b
@@ -511,23 +492,20 @@ Definition Call_Soundness (p: raw_sigCom) :
 
 (* Binding Theorem *)
 
-Theorem Com_Binding_Soundness p (A : adversary (IBinding (sig_to_com p))) 
-  : Adv (Binding_real (sig_to_com p)) (Call_Soundness p ∘ Special_Soundness_t p) A = 0.
+Theorem Com_Binding_Soundness p :
+  perfect (IBinding (sig_to_com p))
+   (Binding_real (sig_to_com p)) (Call_Soundness p ∘ Special_Soundness_t p).
 Proof.
-  rewrite -share_link_sep_link; [| nssprove_separate_solve ].
-  eapply Adv_perf; [| exact module_valid ].
+  nssprove_share.
+  eapply prove_perfect.
   eapply eq_rel_perf_ind_eq.
   simplify_eq_rel e.
   ssprove_code_simpl; rewrite cast_fun_K.
-  destruct e as [[[[c v] o] v'] o'].
-  ssprove_code_simpl.
-  apply rsame_head => w.
-  apply rsame_head => h.
+  destruct e as [[[[[k c] v] o] v'] o'].
   ssprove_code_simpl_more.
   ssprove_sync_eq => H1.
   ssprove_sync_eq => H2.
   ssprove_sync_eq => H3.
-  ssprove_sync_eq => H4.
   apply r_ret. auto.
 Qed.
 
