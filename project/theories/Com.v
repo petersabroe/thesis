@@ -156,20 +156,32 @@ Definition Adv_Hiding p (ε : adversary (ICommitment p) → Axioms.R) :=
 
 (* ---- Binding ---- *) 
 
-Definition chBinding p := 'key p × 'commitment p × 'value p × 'opening p × 'value p × 'opening p.
+Definition chBinding p := 'commitment p × 'value p × 'opening p × 'value p × 'opening p.
 
 Notation " 'binding p " := (chBinding p) (in custom pack_type at level 2, p constr).
 
 Definition BINDING := 3%N.
+Definition GET := 10%N.
 
-Definition IBinding p := [interface #val #[ BINDING ] : ('binding p) → 'bool ].
+Definition key_loc p : Location := ('key p; 5%N).
+
+Definition IBinding p := [interface 
+      #val #[ GET ] : 'unit → 'key p ;
+      #val #[ BINDING ] : ('binding p) → 'bool ].
 
 
     Definition Binding_real p : 
         game (IBinding p) := 
-        [module no_locs ;
-            #def #[ BINDING ] ('(k, c, v, o, v', o') : 'binding p) : 'bool
+          [module fset [:: key_loc p ] ;
+            #def #[ GET ] (_ : 'unit) : ('key p) {
+              'k ← p.(setup) ;;
+              #put key_loc p := k ;;
+              ret k
+            } ;
+
+            #def #[ BINDING ] ('(c, v, o, v', o') : 'binding p) : 'bool
             { 
+              k ← get key_loc p ;;
               b ← p.(verify) k c v o ;;
               b' ← p.(verify) k c v' o' ;; 
               #assert b ;;
@@ -182,11 +194,25 @@ Definition IBinding p := [interface #val #[ BINDING ] : ('binding p) → 'bool ]
 
     Definition Binding_ideal p :
          game (IBinding p) := 
-        [module no_locs ;
-            #def #[ BINDING ] ('(k, c, v, o, v', o') : 'binding p) : 'bool
+           [module fset [:: key_loc p ] ;
+            #def #[ GET ] (_ : 'unit) : ('key p) {
+              'k ← p.(setup) ;;
+              #put key_loc p := k ;;
+              ret k
+            } ;
+
+            #def #[ BINDING ] ('(c, v, o, v', o') : 'binding p) : 'bool
             {
-              p.(verify) k c v o ;;
-              p.(verify) k c v' o' ;; 
+(*            '(c', o'') ← p.(commit) k v  ;;
+              '(c'', o''') ← p.(commit) k v'  ;;
+              #assert (c'== c'') ;;
+              #assert (c == c') ;; *)
+
+(*              b ← p.(verify) k c v o ;;
+              b' ← p.(verify) k c v' o' ;;
+              #assert b ;;
+              #assert b' ;; *)
+
               @ret 'bool false
             }
         ].
@@ -212,8 +238,8 @@ Record raw_sigExt :=
   ; sampl_challenge : 
       code no_locs [interface] (Challenge p) 
 
-  ; key_gen :  ∀ (w : Witness p),
-      code no_locs [interface] (Statement p)
+  ; key_gen :  (*∀ (w : Witness p),*)
+      code no_locs [interface] (Witness p × Statement p)
   }.
 
 
@@ -225,8 +251,8 @@ Definition sig_to_com (p : raw_sigExt) : raw_com :=
  
    ; setup := 
      {code 
-       w ← p.(sampl_wit) ;; 
-       h ← (p.(key_gen) w) ;;
+       (* w ← p.(sampl_wit) ;; *)
+       '(w, h) ← p.(key_gen) ;;
        #assert p.(R) h w ;;
        ret ((h) : _)
       }
@@ -257,8 +283,8 @@ Definition Call_correct_sig (p: raw_sigExt) :
       #def #[ CORRECTNESS ] (v : 'value (sig_to_com p)) : 'bool
           {
             #import {sig #[ RUN ] : ('input p) → 'bool} as COR ;;
-            w ← p.(sampl_wit) ;; 
-            h ← p.(key_gen) w ;;
+(*             w ← p.(sampl_wit) ;;  *)
+            '(w, h) ← p.(key_gen);;
             #assert p.(R) h w ;;
             b ← COR (h, w, v) ;;
             ret b
@@ -274,37 +300,40 @@ Proof.
     eapply eq_rel_perf_ind_eq.
     simplify_eq_rel e.
     ssprove_code_simpl; rewrite cast_fun_K.
-    apply rsame_head => w.
-    apply rsame_head => h.
+    apply rsame_head => key.
+    destruct key.
     ssprove_code_simpl_more.
     ssprove_sync_eq => H.
     rewrite H //=.
     apply r_ret. auto.
 Qed.
 
+Create HintDb nssprove_into_share.
+Hint Rewrite <- @share_link_sep_link : nssprove_into_share.
+Hint Rewrite <- @share_par_sep_par : nssprove_into_share.
+
 Lemma Correct_real_sim_perf p :
    perfect (ICorrect_com (sig_to_com p)) 
     (Call_correct_sig p ∘ Correct_sim p) (Correct_real (sig_to_com p)).
 Proof.
     unfold Correct_sim.
-    rewrite sep_link_assoc.
+    ((rewrite_strat innermost hints nssprove_into_share)
+      ; try nssprove_separate_solve).
     nssprove_share.
-    rewrite -share_link_assoc.
-    rewrite move0.
-    -   eapply prove_perfect.
-        apply eq_rel_perf_ind_eq.
-        simplify_eq_rel e. 
-        do 2 (ssprove_code_simpl; rewrite cast_fun_K).
-        apply rsame_head => w.
-        apply rsame_head => h.
-        ssprove_code_simpl_more.
-        ssprove_sync_eq => H.
-        rewrite H //=.
-        ssprove_code_simpl.
-        apply rsame_head => sim.
-        destruct sim.
-        apply r_ret. auto.
-    - Admitted.
+    eapply prove_perfect.
+    apply eq_rel_perf_ind_eq.
+    simplify_eq_rel e. 
+    do 2 (ssprove_code_simpl; rewrite cast_fun_K).
+    apply rsame_head => key.
+    destruct key.
+    ssprove_code_simpl_more.
+    ssprove_sync_eq => H.
+    rewrite H //=.
+    ssprove_code_simpl.
+    apply rsame_head => sim.
+    destruct sim.
+    apply r_ret. auto.
+Qed.
  
 
 Theorem Com_Correct_Correct:
@@ -334,8 +363,8 @@ Definition Call_SHVZK_inp (p: raw_sigExt) :
       #def #[ COMMITMENT ] (v : 'value (sig_to_com p)) : ('commitment (sig_to_com p))
           {
             #import {sig #[ TRANSCRIPT ] : ('input p) → 'transcript p} as TRANS ;;
-            w ← p.(sampl_wit) ;; 
-            h ← p.(key_gen) w ;;
+(*             w ← p.(sampl_wit) ;;  *)
+            '(w, h) ← p.(key_gen) ;;
             #assert p.(R) h w ;;
             _ ← (sig_to_com p).(sampl_value) ;;
             '(h, a, e, z) ← TRANS (h, w, v) ;;           
@@ -352,8 +381,8 @@ Definition Call_SHVZK_sam (p: raw_sigExt) :
       #def #[ COMMITMENT ] (v : 'value (sig_to_com p)) : ('commitment (sig_to_com p))
           {
             #import {sig #[ TRANSCRIPT ] : ('input p) → 'transcript p} as TRANS ;;
-            w ← p.(sampl_wit) ;; 
-            h ← p.(key_gen) w ;;
+(*             w ← p.(sampl_wit) ;;  *)
+            '(w, h) ← p.(key_gen) ;;
             #assert p.(R) h w ;;
             u ← (sig_to_com p).(sampl_value) ;;
             '(h, a, e, z) ← TRANS (h, w, u) ;;           
@@ -374,8 +403,8 @@ Proof.
     eapply eq_rel_perf_ind_eq.
     simplify_eq_rel e.
     ssprove_code_simpl; rewrite cast_fun_K.
-    apply rsame_head => w.
-    apply rsame_head => h.
+    apply rsame_head => key.
+    destruct key.
     ssprove_code_simpl_more.
     ssprove_sync_eq => H.
     apply rsame_head => sampl.
@@ -400,8 +429,8 @@ Proof.
     eapply eq_rel_perf_ind_eq.
     simplify_eq_rel e.
     ssprove_code_simpl; rewrite cast_fun_K.
-    apply rsame_head => w.
-    apply rsame_head => h.
+    apply rsame_head => key.
+    destruct key.
     ssprove_code_simpl_more.
     ssprove_sync_eq => H.
     apply rsame_head => sampl.
@@ -427,15 +456,15 @@ Proof.
     simplify_eq_rel e'.
     ssprove_code_simpl; rewrite cast_fun_K.
     ssprove_code_simpl.
-    apply rsame_head => w'.
-    apply rsame_head => h'.
+    apply rsame_head => key.
+    destruct key as [w' h'].
     ssprove_sync_eq => H1.
     apply rsame_head => sampl.
     ssprove_code_simpl_more.
     ssprove_sync_eq => _.
     ssprove_code_simpl. 
     apply rsame_head => a'.
-    destruct a'.
+    destruct a' as [a' s'].
     eapply r_NoFail_L.
     - apply H.
     - intros z1. apply r_NoFail_R.
@@ -477,22 +506,78 @@ Qed.
 
 (* ---- BINDING RELATED TO SOUNDNESS ---- *)
 
-Definition Call_Soundness (p: raw_sigExt) :
 
+Definition QUERY : nat := 11.
+
+Notation IHardness p := [interface
+  #val #[ GET ] : 'unit → 'statement p ;
+  #val #[ QUERY ] : 'witness p → 'bool
+].
+
+
+Definition Hardness (p: raw_sigExt) b :
+  game (IHardness p) :=
+  [module fset [:: key_loc (sig_to_com p) ] ;
+    #def #[ GET ] (_ : 'unit) : ('key (sig_to_com p)) 
+      {
+        '(w, h) ← p.(key_gen) ;;
+        #assert p.(R) h w ;;
+        #put key_loc (sig_to_com p) := h ;;
+        ret h
+      } ;
+    #def #[ QUERY ] (w : 'witness p) : 'bool 
+      {
+        h ← get key_loc (sig_to_com p) ;;
+        ret (b && (p.(R) h w))
+      }
+  ].
+
+Definition Call_Soundness (p: raw_sigExt) :
   module (Soundness p) (IBinding (sig_to_com p)) := 
-  [module no_locs ;
-      #def #[ BINDING ] ('(k, c, v, o, v', o') : 'binding (sig_to_com p)) : 'bool
-          {
-            #import {sig #[ SOUNDNESS ] : ('soundness p) → 'bool} as SOUND ;;
-            'b ← SOUND ((k, c), ((v, o), (v', o'))) ;;
-            ret b
-          }
+  [module fset [:: key_loc (sig_to_com p) ] ;
+      #def #[ GET ] (_ : 'unit) : ('key (sig_to_com p)) 
+        {
+          '(w, h) ← p.(key_gen) ;;
+          #assert p.(R) h w ;;
+          #put key_loc (sig_to_com p) := h ;;
+          ret h
+        } ;
+      #def #[ BINDING ] ('(c, v, o, v', o') : 'binding (sig_to_com p)) : 'bool
+        {
+          'h ← get key_loc (sig_to_com p) ;;
+          #import {sig #[ SOUNDNESS ] : ('soundness p) → 'bool} as SOUND ;;
+          'b ← SOUND ((h, c), ((v, o), (v', o'))) ;;
+          ret b
+        }
   ].
 
 
-(* Binding Theorem *)
 
-Theorem Com_Binding_Soundness p :
+Definition Call_Hardness (p: raw_sigExt) :
+   module (IHardness p) (IBinding (sig_to_com p)) :=
+  [module fset [:: key_loc (sig_to_com p) ] ;
+      #def #[ GET ] (_ : 'unit) : ('key (sig_to_com p)) 
+        {
+          '(w, h) ← p.(key_gen) ;;
+          #assert p.(R) h w ;;
+          #put key_loc (sig_to_com p) := h ;;
+          ret h
+        } ;
+      #def #[ BINDING ] ('(c, v, o, v', o') : 'binding (sig_to_com p)) : 'bool
+          {
+            #import {sig #[ QUERY ] : ('witness p) → 'bool} as QUE ;;
+            'h ← get key_loc (sig_to_com p) ;;
+            let ow := p.(extractor) h c v v' o o' in
+            if ow is Some w 
+              then 'b ← QUE w ;; ret b 
+              else ret false
+          }
+    ].
+
+
+
+
+Lemma Binding_real_Soundness_t_perf p :
   perfect (IBinding (sig_to_com p))
    (Binding_real (sig_to_com p)) (Call_Soundness p ∘ Special_Soundness_t p).
 Proof.
@@ -500,8 +585,16 @@ Proof.
   eapply prove_perfect.
   eapply eq_rel_perf_ind_eq.
   simplify_eq_rel e.
-  ssprove_code_simpl; rewrite cast_fun_K.
-  destruct e as [[[[[k c] v] o] v'] o'].
+  - ssprove_code_simpl.
+    apply rsame_head => key.
+    destruct key as [w h].
+    ssprove_code_simpl_more.
+    ssprove_sync_eq => _.
+    ssprove_sync_eq.
+    apply r_ret. auto.
+  - ssprove_code_simpl; rewrite cast_fun_K.
+  destruct e as [[[[c v] o] v'] o'].
+  ssprove_sync_eq => key.
   ssprove_code_simpl_more.
   ssprove_sync_eq => H1.
   ssprove_sync_eq => H2.
@@ -509,4 +602,50 @@ Proof.
   apply r_ret. auto.
 Qed.
 
+
+Lemma Binding_ideal_Hardness_false_perf p :
+  perfect (IBinding (sig_to_com p))
+   (Call_Hardness p ∘ Hardness p false) (Binding_ideal (sig_to_com p)).
+Proof.
+  nssprove_share.
+  eapply prove_perfect.
+  eapply eq_rel_perf_ind_eq.
+  simplify_eq_rel e.
+  Admitted.
+
+Lemma Soundness_f_Hardness_true_perf p :
+  perfect (IBinding (sig_to_com p))
+   (Call_Soundness p ∘ Special_Soundness_f p) (Call_Hardness p ∘ Hardness p true).
+Proof.
+  nssprove_share.
+  eapply prove_perfect.
+  eapply eq_rel_perf_ind_eq.
+  simplify_eq_rel e.
+Admitted.
+
+
+(* Binding Theorem *)
+ 
+Theorem Com_Binding_Soundness_Rel :
+  ∀ (p : raw_sigExt) ,
+  Adv_Binding (sig_to_com p) (λ A,
+    AdvFor (Special_Soundness p) (A ∘ Call_Soundness p) + AdvFor (Hardness p) (A ∘ Call_Hardness p)).
+Proof.
+  intros p A.
+  unfold AdvFor.
+  simpl.
+  nssprove_adv_trans (Call_Soundness p ∘ Special_Soundness_t p)%sep.
+  rewrite Binding_real_Soundness_t_perf.
+  rewrite GRing.add0r.
+  nssprove_adv_trans (Call_Soundness p ∘ Special_Soundness_f p)%sep.
+  apply lerD.
+  - rewrite Adv_sep_link.
+    apply le_refl.
+  - nssprove_adv_trans (Call_Hardness p ∘ Hardness p false)%sep.
+    rewrite Binding_ideal_Hardness_false_perf. rewrite GRing.addr0.
+    nssprove_adv_trans (Call_Hardness p ∘ Hardness p true)%sep.
+    rewrite Soundness_f_Hardness_true_perf. rewrite GRing.add0r.
+    rewrite Adv_sep_link.
+    apply le_refl.
+Qed.
 
