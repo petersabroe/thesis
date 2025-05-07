@@ -162,10 +162,12 @@ Notation " 'binding p " := (chBinding p) (in custom pack_type at level 2, p cons
 
 Definition BINDING := 3%N.
 Definition GET := 10%N.
+Definition INIT := 11%N.
 
-Definition key_loc p : Location := ('key p; 5%N).
+Definition key_loc p : Location := ('option 'key p; 5%N).
 
 Definition IBinding p := [interface 
+      #val #[ INIT ] : 'unit → 'unit ;
       #val #[ GET ] : 'unit → 'key p ;
       #val #[ BINDING ] : ('binding p) → 'bool ].
 
@@ -173,15 +175,20 @@ Definition IBinding p := [interface
     Definition Binding_real p : 
         game (IBinding p) := 
           [module fset [:: key_loc p ] ;
-            #def #[ GET ] (_ : 'unit) : ('key p) {
+            #def #[ INIT ] (_ : 'unit) : ('unit) {
               'k ← p.(setup) ;;
-              #put key_loc p := k ;;
+              #put key_loc p := Some k ;;
+              ret tt
+            } ;
+
+            #def #[ GET ] (_ : 'unit) : ('key p) {
+              k ← getSome key_loc p ;;
               ret k
             } ;
 
             #def #[ BINDING ] ('(c, v, o, v', o') : 'binding p) : 'bool
             { 
-              k ← get key_loc p ;;
+              k ← getSome key_loc p ;;
               b ← p.(verify) k c v o ;;
               b' ← p.(verify) k c v' o' ;; 
               #assert b ;;
@@ -195,9 +202,14 @@ Definition IBinding p := [interface
     Definition Binding_ideal p :
          game (IBinding p) := 
            [module fset [:: key_loc p ] ;
-            #def #[ GET ] (_ : 'unit) : ('key p) {
+            #def #[ INIT ] (_ : 'unit) : ('unit) {
               'k ← p.(setup) ;;
-              #put key_loc p := k ;;
+              #put key_loc p := Some k ;;
+              ret tt
+            } ;
+
+            #def #[ GET ] (_ : 'unit) : ('key p) {
+              k ← getSome key_loc p ;;
               ret k
             } ;
 
@@ -212,6 +224,7 @@ Definition IBinding p := [interface
               b' ← p.(verify) k c v' o' ;;
               #assert b ;;
               #assert b' ;; *)
+              k ← getSome key_loc p ;;
 
               @ret 'bool false
             }
@@ -507,9 +520,10 @@ Qed.
 (* ---- BINDING RELATED TO SOUNDNESS ---- *)
 
 
-Definition QUERY : nat := 11.
+Definition QUERY : nat := 12.
 
 Notation IHardness p := [interface
+  #val #[ INIT ] : 'unit → 'unit ;
   #val #[ GET ] : 'unit → 'statement p ;
   #val #[ QUERY ] : 'witness p → 'bool
 ].
@@ -518,33 +532,42 @@ Notation IHardness p := [interface
 Definition Hardness (p: raw_sigExt) b :
   game (IHardness p) :=
   [module fset [:: key_loc (sig_to_com p) ] ;
-    #def #[ GET ] (_ : 'unit) : ('key (sig_to_com p)) 
+    #def #[ INIT ] (_ : 'unit) : ('unit) 
       {
         '(w, h) ← p.(key_gen) ;;
-        #assert p.(R) h w ;;
-        #put key_loc (sig_to_com p) := h ;;
+         #assert p.(R) h w ;; 
+        #put key_loc (sig_to_com p) := Some h ;;
+        @ret 'unit tt
+      } ;
+    #def #[ GET ] (_ : 'unit) : ('key (sig_to_com p)) 
+      {
+        h ← getSome (key_loc (sig_to_com p));; 
         ret h
       } ;
     #def #[ QUERY ] (w : 'witness p) : 'bool 
       {
-        h ← get key_loc (sig_to_com p) ;;
-        ret (b && (p.(R) h w))
+        h ← getSome (key_loc (sig_to_com p));; 
+        @ret 'bool (b && (p.(R) h w))
       }
   ].
 
 Definition Call_Soundness (p: raw_sigExt) :
   module (Soundness p) (IBinding (sig_to_com p)) := 
   [module fset [:: key_loc (sig_to_com p) ] ;
-      #def #[ GET ] (_ : 'unit) : ('key (sig_to_com p)) 
-        {
-          '(w, h) ← p.(key_gen) ;;
-          #assert p.(R) h w ;;
-          #put key_loc (sig_to_com p) := h ;;
-          ret h
-        } ;
+      #def #[ INIT ] (_ : 'unit) : ('unit) {
+        'k ← (sig_to_com p).(setup) ;;
+        #put key_loc (sig_to_com p) := Some k ;;
+        ret tt
+      } ;
+
+      #def #[ GET ] (_ : 'unit) : ('key (sig_to_com p)) {
+        k ← getSome key_loc (sig_to_com p) ;;
+        ret k
+      } ;
+
       #def #[ BINDING ] ('(c, v, o, v', o') : 'binding (sig_to_com p)) : 'bool
         {
-          'h ← get key_loc (sig_to_com p) ;;
+          h ← getSome (key_loc (sig_to_com p));; 
           #import {sig #[ SOUNDNESS ] : ('soundness p) → 'bool} as SOUND ;;
           'b ← SOUND ((h, c), ((v, o), (v', o'))) ;;
           ret b
@@ -553,20 +576,29 @@ Definition Call_Soundness (p: raw_sigExt) :
 
 
 
+
 Definition Call_Hardness (p: raw_sigExt) :
    module (IHardness p) (IBinding (sig_to_com p)) :=
-  [module fset [:: key_loc (sig_to_com p) ] ;
+  [module no_locs ;
+      #def #[ INIT ] (_ : 'unit) : ('unit) {
+        call INIT 'unit ('unit) tt ;;
+        ret tt
+      } ;
+
       #def #[ GET ] (_ : 'unit) : ('key (sig_to_com p)) 
         {
-          '(w, h) ← p.(key_gen) ;;
-          #assert p.(R) h w ;;
-          #put key_loc (sig_to_com p) := h ;;
+          #import {sig #[ GET ] : 'unit → 'statement p} as GETH ;;
+          h ← GETH Datatypes.tt ;;
           ret h
         } ;
       #def #[ BINDING ] ('(c, v, o, v', o') : 'binding (sig_to_com p)) : 'bool
           {
             #import {sig #[ QUERY ] : ('witness p) → 'bool} as QUE ;;
-            'h ← get key_loc (sig_to_com p) ;;
+            #import {sig #[ GET ] : 'unit → 'statement p} as GETH ;;
+            h ← GETH tt ;;
+            #assert p.(Sigma.verify) h c v o ;;
+            #assert p.(Sigma.verify) h c v' o' ;;
+            #assert v != v' ;;
             let ow := p.(extractor) h c v v' o o' in
             if ow is Some w 
               then 'b ← QUE w ;; ret b 
@@ -586,20 +618,21 @@ Proof.
   eapply eq_rel_perf_ind_eq.
   simplify_eq_rel e.
   - ssprove_code_simpl.
+    ssprove_code_simpl.
     apply rsame_head => key.
     destruct key as [w h].
-    ssprove_code_simpl_more.
-    ssprove_sync_eq => _.
-    ssprove_sync_eq.
-    apply r_ret. auto.
+    ssprove_code_simpl. simpl.
+    eapply rpost_weaken_rule.
+    1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H. 
+  - ssprove_code_simpl.
+    eapply rpost_weaken_rule.
+    1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H. 
   - ssprove_code_simpl; rewrite cast_fun_K.
-  destruct e as [[[[c v] o] v'] o'].
-  ssprove_sync_eq => key.
-  ssprove_code_simpl_more.
-  ssprove_sync_eq => H1.
-  ssprove_sync_eq => H2.
-  ssprove_sync_eq => H3.
-  apply r_ret. auto.
+    destruct e as [[[[c v] o] v'] o'].
+    ssprove_sync_eq => key.
+    ssprove_code_simpl_more.
+    eapply rpost_weaken_rule.
+    1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H. 
 Qed.
 
 
@@ -611,7 +644,24 @@ Proof.
   eapply prove_perfect.
   eapply eq_rel_perf_ind_eq.
   simplify_eq_rel e.
-  Admitted.
+  - simplify_linking; rewrite cast_fun_K.
+    ssprove_code_simpl.
+    ssprove_code_simpl_more.
+    apply rsame_head => key.
+    destruct key as [w h]. 
+    apply bind_ret. admit.
+  - simplify_linking. 
+    ssprove_sync_eq => h.
+    ssprove_code_simpl_more.
+    ssprove_sync_eq => H.
+    apply r_ret. auto.
+  - ssprove_code_simpl; simpl.
+    destruct e as [[[[c v] o] v'] o'].
+    ssprove_sync_eq => h.
+    ssprove_code_simpl_more.
+    ssprove_sync_eq => H. admit.
+
+Admitted.
 
 Lemma Soundness_f_Hardness_true_perf p :
   perfect (IBinding (sig_to_com p))
@@ -621,6 +671,29 @@ Proof.
   eapply prove_perfect.
   eapply eq_rel_perf_ind_eq.
   simplify_eq_rel e.
+  all: ssprove_code_simpl.
+  - simplify_linking; rewrite cast_fun_K.
+    ssprove_code_simpl. simpl.
+    apply rsame_head => key.
+    destruct key as [w h]. admit. (*samme admit som før *)
+  - simplify_linking. 
+    ssprove_sync_eq => h.
+    ssprove_code_simpl_more.
+    ssprove_sync_eq => H.
+    apply r_ret. auto.
+  - ssprove_code_simpl; rewrite cast_fun_K; simpl.
+    destruct e as [[[[c v] o] v'] o'].
+    ssprove_sync_eq => h.
+    ssprove_code_simpl_more.
+    ssprove_sync_eq => H.
+    ssprove_sync_eq => H1.
+    ssprove_sync_eq => H2.
+    ssprove_sync_eq => H3. 
+    destruct (extractor p).
+    2: { apply r_ret. auto. }
+    ssprove_code_simpl_more.
+    
+    
 Admitted.
 
 
