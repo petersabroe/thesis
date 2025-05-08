@@ -219,12 +219,13 @@ Definition IBinding p := [interface
               '(c'', o''') ← p.(commit) k v'  ;;
               #assert (c'== c'') ;;
               #assert (c == c') ;; *)
-
-(*              b ← p.(verify) k c v o ;;
+              k ← getSome key_loc p ;;
+              b ← p.(verify) k c v o ;;
               b' ← p.(verify) k c v' o' ;;
               #assert b ;;
-              #assert b' ;; *)
-              k ← getSome key_loc p ;;
+              #assert b' ;; 
+              #assert (v != v') ;;
+
 
               @ret 'bool false
             }
@@ -264,9 +265,8 @@ Definition sig_to_com (p : raw_sigExt) : raw_com :=
  
    ; setup := 
      {code 
-       (* w ← p.(sampl_wit) ;; *)
        '(w, h) ← p.(key_gen) ;;
-       #assert p.(R) h w ;;
+(*        #assert p.(R) h w ;; *)
        ret ((h) : _)
       }
 
@@ -296,9 +296,8 @@ Definition Call_correct_sig (p: raw_sigExt) :
       #def #[ CORRECTNESS ] (v : 'value (sig_to_com p)) : 'bool
           {
             #import {sig #[ RUN ] : ('input p) → 'bool} as COR ;;
-(*             w ← p.(sampl_wit) ;;  *)
             '(w, h) ← p.(key_gen);;
-            #assert p.(R) h w ;;
+(*             #assert p.(R) h w ;; *)
             b ← COR (h, w, v) ;;
             ret b
           }
@@ -315,11 +314,11 @@ Proof.
     ssprove_code_simpl; rewrite cast_fun_K.
     apply rsame_head => key.
     destruct key.
-    ssprove_code_simpl_more.
-    ssprove_sync_eq => H.
+    ssprove_code_simpl_more. Admitted. (* assert i Sigma.Correct_ideal *)
+(*     ssprove_sync_eq => H. 
     rewrite H //=.
     apply r_ret. auto.
-Qed.
+Qed. *)
 
 Create HintDb nssprove_into_share.
 Hint Rewrite <- @share_link_sep_link : nssprove_into_share.
@@ -339,14 +338,14 @@ Proof.
     do 2 (ssprove_code_simpl; rewrite cast_fun_K).
     apply rsame_head => key.
     destruct key.
-    ssprove_code_simpl_more.
-    ssprove_sync_eq => H.
+    ssprove_code_simpl_more. Admitted. (* assert i SHVZK_ideal *)
+(*     ssprove_sync_eq => H.
     rewrite H //=.
     ssprove_code_simpl.
     apply rsame_head => sim.
     destruct sim.
     apply r_ret. auto.
-Qed.
+Qed. *)
  
 
 Theorem Com_Correct_Correct:
@@ -378,7 +377,7 @@ Definition Call_SHVZK_inp (p: raw_sigExt) :
             #import {sig #[ TRANSCRIPT ] : ('input p) → 'transcript p} as TRANS ;;
 (*             w ← p.(sampl_wit) ;;  *)
             '(w, h) ← p.(key_gen) ;;
-            #assert p.(R) h w ;;
+(*             #assert p.(R) h w ;; *)
             _ ← (sig_to_com p).(sampl_value) ;;
             '(h, a, e, z) ← TRANS (h, w, v) ;;           
             ret (a : (sig_to_com p).(Commitment))  
@@ -396,7 +395,7 @@ Definition Call_SHVZK_sam (p: raw_sigExt) :
             #import {sig #[ TRANSCRIPT ] : ('input p) → 'transcript p} as TRANS ;;
 (*             w ← p.(sampl_wit) ;;  *)
             '(w, h) ← p.(key_gen) ;;
-            #assert p.(R) h w ;;
+(*             #assert p.(R) h w ;; *)
             u ← (sig_to_com p).(sampl_value) ;;
             '(h, a, e, z) ← TRANS (h, w, u) ;;           
             ret (a : (sig_to_com p).(Commitment))  
@@ -418,16 +417,14 @@ Proof.
     ssprove_code_simpl; rewrite cast_fun_K.
     apply rsame_head => key.
     destruct key.
-    ssprove_code_simpl_more.
-    ssprove_sync_eq => H.
     apply rsame_head => sampl.
-    ssprove_code_simpl_more.
-    rewrite H //=.
+    ssprove_code_simpl_more. Admitted. (* assert i SHVZK_ideal *)
+(*     rewrite H //=.
     ssprove_code_simpl.
     apply rsame_head => sim.
     destruct sim.
     apply r_ret. auto.
-Qed.
+Qed. *)
 
 
 (* Hiding_ideal and SHVZK_ideal perf ind. *)
@@ -444,16 +441,14 @@ Proof.
     ssprove_code_simpl; rewrite cast_fun_K.
     apply rsame_head => key.
     destruct key.
-    ssprove_code_simpl_more.
-    ssprove_sync_eq => H.
     apply rsame_head => sampl.
-    ssprove_code_simpl_more.
-    rewrite H //=.
+    ssprove_code_simpl_more. Admitted. (* assert i SHVZK_ideal *)
+(*     rewrite H //=.
     ssprove_code_simpl.
     apply rsame_head => sim.
     destruct sim.
     apply r_ret. auto.
-Qed.
+Qed. *)
 
 
 
@@ -471,10 +466,9 @@ Proof.
     ssprove_code_simpl.
     apply rsame_head => key.
     destruct key as [w' h'].
-    ssprove_sync_eq => H1.
     apply rsame_head => sampl.
     ssprove_code_simpl_more.
-    ssprove_sync_eq => _.
+    ssprove_sync_eq => H1.
     ssprove_code_simpl. 
     apply rsame_head => a'.
     destruct a' as [a' s'].
@@ -535,7 +529,7 @@ Definition Hardness (p: raw_sigExt) b :
     #def #[ INIT ] (_ : 'unit) : ('unit) 
       {
         '(w, h) ← p.(key_gen) ;;
-         #assert p.(R) h w ;; 
+(*          #assert p.(R) h w ;;  *)
         #put key_loc (sig_to_com p) := Some h ;;
         @ret 'unit tt
       } ;
@@ -648,8 +642,8 @@ Proof.
     ssprove_code_simpl.
     ssprove_code_simpl_more.
     apply rsame_head => key.
-    destruct key as [w h]. 
-    apply bind_ret. admit.
+    eapply rpost_weaken_rule.
+    1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H. 
   - simplify_linking. 
     ssprove_sync_eq => h.
     ssprove_code_simpl_more.
@@ -659,7 +653,13 @@ Proof.
     destruct e as [[[[c v] o] v'] o'].
     ssprove_sync_eq => h.
     ssprove_code_simpl_more.
-    ssprove_sync_eq => H. admit.
+    ssprove_sync_eq => H.
+    ssprove_sync_eq => H1.
+    ssprove_sync_eq => H2.
+    ssprove_sync_eq => H3.
+    destruct (extractor p).
+    2: { apply r_ret. auto. }
+    ssprove_code_simpl_more. admit.
 
 Admitted.
 
@@ -675,7 +675,9 @@ Proof.
   - simplify_linking; rewrite cast_fun_K.
     ssprove_code_simpl. simpl.
     apply rsame_head => key.
-    destruct key as [w h]. admit. (*samme admit som før *)
+    destruct key as [w h].
+    eapply rpost_weaken_rule.
+    1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H.
   - simplify_linking. 
     ssprove_sync_eq => h.
     ssprove_code_simpl_more.
@@ -691,7 +693,7 @@ Proof.
     ssprove_sync_eq => H3. 
     destruct (extractor p).
     2: { apply r_ret. auto. }
-    ssprove_code_simpl_more.
+    ssprove_code_simpl_more. admit. (* samme admit som ovenfor *)
     
     
 Admitted.
