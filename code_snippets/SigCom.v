@@ -1,4 +1,4 @@
-Record raw_sigCom := 
+Record raw_sigExt := 
   { p :> raw_sigma 
   ; sampl_wit : 
       code no_locs [interface] (Witness p) 
@@ -6,12 +6,12 @@ Record raw_sigCom :=
   ; sampl_challenge : 
       code no_locs [interface] (Challenge p) 
 
-  ; key_gen :  ∀ (w : Witness p),
-      code no_locs [interface] (Statement p)
+  ; key_gen :  (*∀ (w : Witness p),*)
+      code no_locs [interface] (Witness p × Statement p)
   }.
 
 
-Definition sig_to_com (p : raw_sigCom) : raw_com :=
+Definition sig_to_com (p : raw_sigExt) : raw_com :=
   {| Key := p.(Statement)
    ; Value := p.(Challenge) 
    ; Commitment := p.(Message) 
@@ -19,9 +19,8 @@ Definition sig_to_com (p : raw_sigCom) : raw_com :=
  
    ; setup := 
      {code 
-       w ← p.(sampl_wit) ;; 
-       h ← (p.(key_gen) w) ;;
-       #assert p.(R) h w ;;
+       '(w, h) ← p.(key_gen) ;;
+(*        #assert p.(R) h w ;; *)
        ret ((h) : _)
       }
 
