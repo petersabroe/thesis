@@ -638,6 +638,43 @@ Proof.
 Qed.
 
 
+Lemma Soundness_f_Hardness_true_perf p :
+  perfect (IBinding (sig_to_com p))
+   (Call_Soundness p ∘ Special_Soundness_f p) (Call_Hardness p ∘ Hardness p true).
+Proof.
+  nssprove_share.
+  eapply prove_perfect.
+  eapply eq_rel_perf_ind_eq.
+  simplify_eq_rel e.
+  all: ssprove_code_simpl.
+  - simplify_linking; rewrite cast_fun_K.
+    ssprove_code_simpl. simpl.
+    apply rsame_head => key.
+    destruct key as [w h].
+    eapply rpost_weaken_rule.
+    1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H.
+     (* fejl løst ved at ændre INIT procedure i Hardness - se ovenfor *)
+  - simplify_linking. 
+    ssprove_sync_eq => h.
+    ssprove_code_simpl_more.
+    ssprove_sync_eq => H.
+    apply r_ret. auto.
+  - ssprove_code_simpl; rewrite cast_fun_K; simpl.
+    destruct e as [[[[c v] o] v'] o'].
+    ssprove_sync_eq => h.
+    ssprove_code_simpl_more.
+    ssprove_sync_eq => H.
+    ssprove_sync_eq => H1.
+    ssprove_sync_eq => H2.
+    ssprove_sync_eq => H3. 
+    destruct (extractor p).
+    2: { apply r_ret. auto. }
+    ssprove_code_simpl_more. 
+(*     rewrite h //=. *)
+    admit. (* ikke sikker på den sidste bid *)
+    
+Admitted.
+
 Lemma Binding_ideal_Hardness_false_perf p :
   perfect (IBinding (sig_to_com p))
    (Call_Hardness p ∘ Hardness p false) (Binding_ideal (sig_to_com p)).
@@ -673,41 +710,6 @@ Proof.
 
 Admitted.
 
-Lemma Soundness_f_Hardness_true_perf p :
-  perfect (IBinding (sig_to_com p))
-   (Call_Soundness p ∘ Special_Soundness_f p) (Call_Hardness p ∘ Hardness p true).
-Proof.
-  nssprove_share.
-  eapply prove_perfect.
-  eapply eq_rel_perf_ind_eq.
-  simplify_eq_rel e.
-  all: ssprove_code_simpl.
-  - simplify_linking; rewrite cast_fun_K.
-    ssprove_code_simpl. simpl.
-    apply rsame_head => key.
-    destruct key as [w h].
-    eapply rpost_weaken_rule.
-    1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H.
-     (* fejl løst ved at ændre INIT procedure i Hardness - se ovenfor *)
-  - simplify_linking. 
-    ssprove_sync_eq => h.
-    ssprove_code_simpl_more.
-    ssprove_sync_eq => H.
-    apply r_ret. auto.
-  - ssprove_code_simpl; rewrite cast_fun_K; simpl.
-    destruct e as [[[[c v] o] v'] o'].
-    ssprove_sync_eq => h.
-    ssprove_code_simpl_more.
-    ssprove_sync_eq => H.
-    ssprove_sync_eq => H1.
-    ssprove_sync_eq => H2.
-    ssprove_sync_eq => H3. 
-    destruct (extractor p).
-    2: { apply r_ret. auto. }
-    ssprove_code_simpl_more. admit. (* ikke sikker på den sidste bid *)
-    
-    
-Admitted.
 
 
 (* Binding Theorem *)

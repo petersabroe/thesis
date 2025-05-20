@@ -51,9 +51,10 @@ Definition raw_schnorrExt : raw_sigExt :=
        e ← sample uniform #|exp| ;;
        ret e
      }
-   ; key_gen := λ w,
+   ; key_gen :=
      {code 
-       ret (fto (g ^+ otf w))
+       'w ← sample uniform #|exp| ;;
+       ret (w, (fto (g ^+ otf w)))
      }
   |}.
  
@@ -78,12 +79,30 @@ Proof.
   intros A.
   eapply le_trans.
   - apply Com_hiding_SHVZK.
-    intros. apply NoFail_ret.
+    + intros. apply NoFail_ret.
+    + apply NoFail_sampler.
+      * apply LosslessOp_uniform.
+      * intros. apply NoFail_ret.
   - rewrite -(add0r 0).
     apply lerD.
     + apply: (schnorr_SHVZK {adversary (Transcript raw_schnorr); (A ∘ Call_SHVZK_inp raw_schnorrExt)}).
     + apply: (schnorr_SHVZK {adversary (Transcript raw_schnorr); (A ∘ Call_SHVZK_sam raw_schnorrExt)}).
 Qed.
+
+
+
+Theorem comSchnorr_Binding : Adv_Binding raw_comSchnorr (λ A, AdvFor (Hardness raw_schnorrExt) (A ∘ Call_Hardness raw_schnorrExt)).
+Proof.
+  intros A.
+  eapply le_trans.
+  - apply Com_Binding_Soundness_Rel.
+  - rewrite -(add0r (AdvFor (λ b : bool, Hardness raw_schnorrExt b) (A ∘ Call_Hardness raw_schnorrExt))).
+    apply lerD.
+    + apply: (schnorr_Special_Soundness {adversary (Soundness raw_schnorr); (A ∘ Call_Soundness raw_schnorrExt)}).
+    + rewrite GRing.add0r.
+      apply le_refl.
+Qed.
+      
 
 
 End ComSchnorr.
