@@ -698,7 +698,8 @@ Qed.
 Theorem Com_Binding_Soundness_Rel :
   ∀ (p : raw_sigExt) ,
   Adv_Binding (sig_to_com p) (λ A,
-    AdvFor (Special_Soundness p) (A ∘ Call_Soundness p) + AdvFor (Hardness p) (A ∘ Call_Hardness p)).
+    AdvFor (Special_Soundness p) (A ∘ Call_Soundness p) + 
+    AdvFor (Hardness p) (A ∘ Call_Hardness p)).
 Proof.
   intros p A.
   unfold AdvFor.
