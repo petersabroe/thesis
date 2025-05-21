@@ -41,16 +41,13 @@ Proof. apply /card_gt0P. by exists 0. Qed.
 
 Definition raw_schnorrExt : raw_sigExt := 
   {| p := raw_schnorr
-   ; sampl_wit := 
-     {code
-       w ← sample uniform #|exp| ;;
-       ret w
-     }
+
    ; sampl_challenge := 
      {code 
        e ← sample uniform #|exp| ;;
        ret e
      }
+
    ; key_gen :=
      {code 
        'w ← sample uniform #|exp| ;;

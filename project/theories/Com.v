@@ -190,10 +190,8 @@ Definition IBinding p := [interface
               k ← getSome key_loc p ;;
               b ← p.(verify) k c v o ;;
               b' ← p.(verify) k c v' o' ;; 
-              #assert b ;;
-              #assert b' ;;
-              #assert (v != v') ;;
-              @ret 'bool true
+              let b'' := (v != v') in
+              @ret 'bool (b && b' && b'')
 
             }
         ].
@@ -214,19 +212,11 @@ Definition IBinding p := [interface
 
             #def #[ BINDING ] ('(c, v, o, v', o') : 'binding p) : 'bool
             {
-(*            '(c', o'') ← p.(commit) k v  ;;
-              '(c'', o''') ← p.(commit) k v'  ;;
-              #assert (c'== c'') ;;
-              #assert (c == c') ;; *)
               k ← getSome key_loc p ;;
-(*               b ← p.(verify) k c v o ;;
+              b ← p.(verify) k c v o ;;
               b' ← p.(verify) k c v' o' ;;
-              #assert b ;;
-              #assert b' ;; 
-              #assert (v != v') ;; *)
-
-
-              @ret 'bool false
+              let b'' := (v != v') in
+              @ret 'bool (false && b && b' && b'')
             }
         ].
 
@@ -245,13 +235,11 @@ Definition Adv_Binding p (ε : adversary (IBinding p) → Axioms.R) :=
 
 Record raw_sigExt := 
   { p :> raw_sigma 
-  ; sampl_wit : 
-      code no_locs [interface] (Witness p) 
 
   ; sampl_challenge : 
       code no_locs [interface] (Challenge p) 
 
-  ; key_gen :  (*∀ (w : Witness p),*)
+  ; key_gen : 
       code no_locs [interface] (Witness p × Statement p)
   }.
 
@@ -317,9 +305,8 @@ Proof.
     ssprove_code_simpl; rewrite cast_fun_K.
     apply rsame_head => key.
     destruct key.
-    ssprove_code_simpl_more. (* assert i Sigma.Correct_ideal *)
+    ssprove_code_simpl_more.
     ssprove_sync_eq => H.
-(*     rewrite H //=. *)
     apply r_ret. auto.
 Qed.
 
@@ -377,7 +364,6 @@ Definition Call_SHVZK_inp (p: raw_sigExt) :
       #def #[ COMMITMENT ] (v : 'value (sig_to_com p)) : ('commitment (sig_to_com p))
           {
             #import {sig #[ TRANSCRIPT ] : ('input p) → 'transcript p} as TRANS ;;
-(*             w ← p.(sampl_wit) ;;  *)
             '(w, h) ← p.(key_gen) ;;
              #assert p.(R) h w ;;
             '(h, a, e, z) ← TRANS (h, w, v) ;;           
@@ -394,7 +380,6 @@ Definition Call_SHVZK_sam (p: raw_sigExt) :
       #def #[ COMMITMENT ] (v : 'value (sig_to_com p)) : ('commitment (sig_to_com p))
           {
             #import {sig #[ TRANSCRIPT ] : ('input p) → 'transcript p} as TRANS ;;
-(*             w ← p.(sampl_wit) ;;  *)
             '(w, h) ← p.(key_gen) ;;
              #assert p.(R) h w ;; 
             u ← (sig_to_com p).(sampl_value) ;;
@@ -424,7 +409,7 @@ Proof.
     ssprove_code_simpl.
     apply rsame_head => sim.
     destruct sim.
-    apply r_ret. auto. (* assert i SHVZK_ideal *)
+    apply r_ret. auto.
 Qed.
 
 
@@ -450,7 +435,8 @@ Proof.
     ssprove_code_simpl.
     apply rsame_head => sim.
     destruct sim.
-    apply r_ret. auto. (* assert i SHVZK_ideal *)
+    apply r_ret. auto. 
+
 Qed.
 
 
@@ -537,9 +523,9 @@ Definition Hardness (p: raw_sigExt) b :
   [module fset [:: key_loc (sig_to_com p) ] ;
     #def #[ INIT ] (_ : 'unit) : ('unit) 
       {
-        h ← (sig_to_com p).(setup) ;; (* skal det hellere være p.(key_gen) ?? *)
+        h ← (sig_to_com p).(setup) ;;
         #put key_loc (sig_to_com p) := Some h ;;
-        ret tt (* hvis men vælger '(w, h) ← p.(key_gen) ;; #assert p.R w h så skal retur typen være @ret 'unit tt *)
+        ret tt 
       } ;
     #def #[ GET ] (_ : 'unit) : ('key (sig_to_com p)) 
       {
@@ -577,8 +563,6 @@ Definition Call_Soundness (p: raw_sigExt) :
   ].
 
 
-
-
 Definition Call_Hardness (p: raw_sigExt) :
    module (IHardness p) (IBinding (sig_to_com p)) :=
   [module no_locs ;
@@ -599,17 +583,15 @@ Definition Call_Hardness (p: raw_sigExt) :
             #import {sig #[ QUERY ] : ('witness p) → 'bool} as QUE ;;
             #import {sig #[ GET ] : 'unit → 'statement p} as GETH ;;
             h ← GETH tt ;;
-            #assert p.(Sigma.verify) h c v o ;;
-            #assert p.(Sigma.verify) h c v' o' ;;
-            #assert v != v' ;;
+            let b := p.(Sigma.verify) h c v o in
+            let b' := p.(Sigma.verify) h c v' o' in
+            let b'' := (v != v') in
             let ow := p.(extractor) h c v v' o o' in
             if ow is Some w 
-              then 'b ← QUE w ;; ret b 
+              then 'b''' ← QUE w ;; ret (b''' && b && b' && b'') 
               else ret false
           }
     ].
-
-
 
 
 Lemma Binding_real_Soundness_t_perf p :
@@ -629,12 +611,13 @@ Proof.
   - ssprove_code_simpl.
     eapply rpost_weaken_rule.
     1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H. 
-  - ssprove_code_simpl; rewrite cast_fun_K.
+  - ssprove_code_simpl.
     destruct e as [[[[c v] o] v'] o'].
     ssprove_sync_eq => key.
     ssprove_code_simpl_more.
+    ssprove_sync_eq => H.
     eapply rpost_weaken_rule.
-    1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H. 
+    1: apply rreflexivity_rule. intros [? ?] [? ?] H1. by noconf H1. 
 Qed.
 
 
@@ -653,27 +636,27 @@ Proof.
     destruct key as [w h].
     eapply rpost_weaken_rule.
     1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H.
-     (* fejl løst ved at ændre INIT procedure i Hardness - se ovenfor *)
   - simplify_linking. 
     ssprove_sync_eq => h.
     ssprove_code_simpl_more.
     ssprove_sync_eq => H.
     apply r_ret. auto.
-  - ssprove_code_simpl; rewrite cast_fun_K; simpl.
+  - ssprove_code_simpl. simpl.
     destruct e as [[[[c v] o] v'] o'].
-    ssprove_sync_eq => h.
+    eapply (r_get_vs_get_remember (key_loc (sig_to_com p)) _ _ (λ '(s, s'), s = s')).
+    1:{ssprove_invariant. }
+    intros h.
     ssprove_code_simpl_more.
-    ssprove_sync_eq => H.
-    ssprove_sync_eq => H1.
-    ssprove_sync_eq => H2.
-    ssprove_sync_eq => H3. 
+    ssprove_sync_eq => H. 
+    destruct h => //=.
     destruct (extractor p).
-    2: { apply r_ret. auto. }
-    ssprove_code_simpl_more. 
-(*     rewrite h //=. *)
-    admit. (* ikke sikker på den sidste bid *)
-    
-Admitted.
+    2: { apply r_forget_rhs. apply r_forget_lhs. apply r_ret. auto. }
+    eapply r_get_remind_rhs.
+    1: { exact _ . }
+    simpl.
+    apply r_forget_rhs. apply r_forget_lhs. apply r_ret. auto.    
+Qed.
+
 
 Lemma Binding_ideal_Hardness_false_perf p :
   perfect (IBinding (sig_to_com p))
@@ -690,7 +673,6 @@ Proof.
     destruct key as [w h]. 
     eapply rpost_weaken_rule.
     1: apply rreflexivity_rule. intros [? ?] [? ?] H. by noconf H. 
-        (* fejl løst ved at ændre INIT procedure i Hardness - se ovenfor *)
   - simplify_linking. 
     ssprove_sync_eq => h.
     ssprove_code_simpl_more.
@@ -698,17 +680,19 @@ Proof.
     apply r_ret. auto.
   - ssprove_code_simpl; simpl.
     destruct e as [[[[c v] o] v'] o'].
-    ssprove_sync_eq => h.
+    eapply (r_get_vs_get_remember (key_loc (sig_to_com p)) _ _ (λ '(s, s'), s = s')).
+    1:{ssprove_invariant. }
+    intros h.
     ssprove_code_simpl_more.
-    ssprove_sync_eq => H. admit. (* fejl skyldes asserts i Call_Hardness *)
-(*     ssprove_sync_eq => H1.
-    ssprove_sync_eq => H2.
-    ssprove_sync_eq => H3.
+    ssprove_sync_eq => H.
+    destruct h => //=.
     destruct (extractor p).
-    2: { apply r_ret. auto. }
-    ssprove_code_simpl_more. admit. *)
-
-Admitted.
+    2: { apply r_forget_rhs. apply r_forget_lhs. apply r_ret. auto. }
+    eapply r_get_remind_lhs.
+    1: { exact _ . }
+    simpl.
+    apply r_forget_rhs. apply r_forget_lhs. apply r_ret. auto.
+Qed.
 
 
 
