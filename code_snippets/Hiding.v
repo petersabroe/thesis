@@ -4,7 +4,6 @@ Definition Hiding_real p :
        #def #[ COMMITMENT ] (v : 'value p) : ('commitment p)
         {
           k ← p.(setup) ;;
-          _ ← p.(sampl_value) ;;
           '(c, o) ← p.(commit) k v ;;
           @ret ('commitment p) c 
         }

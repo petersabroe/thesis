@@ -11,6 +11,7 @@ Definition Correct_real p :
         }
     ].
 
+
 Definition Correct_ideal p : 
     game (ICorrect_com p) :=
     [module no_locs ;

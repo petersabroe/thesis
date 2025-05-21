@@ -5,7 +5,6 @@ Definition Call_correct_sig (p: raw_sigExt) :
           {
             #import {sig #[ RUN ] : ('input p) → 'bool} as COR ;;
             '(w, h) ← p.(key_gen);;
-(*             #assert p.(R) h w ;; *)
             b ← COR (h, w, v) ;;
             ret b
           }

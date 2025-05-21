@@ -243,11 +243,6 @@ Record raw_sigExt :=
       code no_locs [interface] (Witness p × Statement p)
   }.
 
-Context (η : raw_sigExt).
-
-Context (sig_key_pair : (chProd (Witness η) (Statement η)) → Prop).
-Context (sig_kgen_spec : ⊢ₛ η.(key_gen) ⦃ sig_key_pair ⦄).
-
 
 Definition sig_to_com (p : raw_sigExt) : raw_com :=
   {| Key := p.(Statement)
@@ -276,6 +271,12 @@ Definition sig_to_com (p : raw_sigExt) : raw_com :=
    ; sampl_value := p.(sampl_challenge)
 
   |}.
+
+
+(* Context (η : raw_sigExt).
+
+Context (sig_key_pair : (chProd (Witness η) (Statement η)) → Prop).
+Context (sig_kgen_spec : ⊢ₛ η.(key_gen) ⦃ sig_key_pair ⦄). *)
 
 
 (* ---- CORRECTNESS RELATED TO COMPLETENESS ---- *)
@@ -310,17 +311,12 @@ Proof.
     apply r_ret. auto.
 Qed.
 
-Create HintDb nssprove_into_share.
-Hint Rewrite <- @share_link_sep_link : nssprove_into_share.
-Hint Rewrite <- @share_par_sep_par : nssprove_into_share.
 
 Lemma Correct_real_sim_perf p :
    perfect (ICorrect_com (sig_to_com p)) 
     (Call_correct_sig p ∘ Correct_sim p) (Correct_real (sig_to_com p)).
 Proof.
     unfold Correct_sim.
-    ((rewrite_strat innermost hints nssprove_into_share)
-      ; try nssprove_separate_solve).
     nssprove_share.
     eapply prove_perfect.
     apply eq_rel_perf_ind_eq.
@@ -328,7 +324,7 @@ Proof.
     do 2 (ssprove_code_simpl; rewrite cast_fun_K).
     apply rsame_head => key.
     destruct key.
-    ssprove_code_simpl_more. (* assert i SHVZK_ideal *)
+    ssprove_code_simpl_more.
     ssprove_sync_eq => H.
     ssprove_code_simpl.
     apply rsame_head => sim.
@@ -340,7 +336,8 @@ Qed.
 Theorem Com_Correct_Correct:
   ∀ (p : raw_sigExt) ,
   Adv_Correct (sig_to_com p) (λ A,
-    AdvFor (SHVZK p) (A ∘ Call_correct_sig p ∘ Verify_call p) + AdvFor (Sigma.Correct p) (A ∘ Call_correct_sig p)).
+    AdvFor (SHVZK p) (A ∘ Call_correct_sig p ∘ Verify_call p) + 
+    AdvFor (Sigma.Correct p) (A ∘ Call_correct_sig p)).
 Proof.
   intros p A.
   nssprove_adv_trans (Call_correct_sig p ∘ Correct_sim p)%sep.

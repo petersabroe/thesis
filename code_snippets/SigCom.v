@@ -1,12 +1,10 @@
 Record raw_sigExt := 
   { p :> raw_sigma 
-  ; sampl_wit : 
-      code no_locs [interface] (Witness p) 
 
   ; sampl_challenge : 
       code no_locs [interface] (Challenge p) 
 
-  ; key_gen :  (*∀ (w : Witness p),*)
+  ; key_gen : 
       code no_locs [interface] (Witness p × Statement p)
   }.
 
@@ -20,7 +18,7 @@ Definition sig_to_com (p : raw_sigExt) : raw_com :=
    ; setup := 
      {code 
        '(w, h) ← p.(key_gen) ;;
-(*        #assert p.(R) h w ;; *)
+         #assert p.(R) h w ;;
        ret ((h) : _)
       }
 

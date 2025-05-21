@@ -2,8 +2,9 @@ Definition Call_Hardness (p: raw_sigExt) :
    module (IHardness p) (IBinding (sig_to_com p)) :=
   [module no_locs ;
       #def #[ INIT ] (_ : 'unit) : ('unit) {
-        call INIT 'unit ('unit) tt ;;
-        ret tt
+        #import {sig #[ INIT ] : 'unit → 'unit} as INITH ;;
+        u ← INITH Datatypes.tt ;;
+        ret u
       } ;
 
       #def #[ GET ] (_ : 'unit) : ('key (sig_to_com p)) 
@@ -17,12 +18,12 @@ Definition Call_Hardness (p: raw_sigExt) :
             #import {sig #[ QUERY ] : ('witness p) → 'bool} as QUE ;;
             #import {sig #[ GET ] : 'unit → 'statement p} as GETH ;;
             h ← GETH tt ;;
-            #assert p.(Sigma.verify) h c v o ;;
-            #assert p.(Sigma.verify) h c v' o' ;;
-            #assert v != v' ;;
+            let b := p.(Sigma.verify) h c v o in
+            let b' := p.(Sigma.verify) h c v' o' in
+            let b'' := (v != v') in
             let ow := p.(extractor) h c v v' o o' in
             if ow is Some w 
-              then 'b ← QUE w ;; ret b 
+              then 'b''' ← QUE w ;; ret (b''' && b && b' && b'') 
               else ret false
           }
     ].
