@@ -8,7 +8,7 @@ Record raw_com :=
       code no_locs [interface] Key
 
   ; commit :
-    ∀ (k : Key) (u : Value),
+    ∀ (k : Key) (v : Value),
       code no_locs [interface] (Commitment × Opening)
 
   ; verify :

@@ -1,3 +1,5 @@
+(* Imports and settings *)
+
 Set Warnings "-notation-overridden,-ambiguous-paths".
 From mathcomp Require Import all_ssreflect all_algebra reals distr realsum
   fingroup.fingroup solvable.cyclic prime ssrnat ssreflect ssrfun ssrbool ssrnum
@@ -25,13 +27,23 @@ Import PackageNotation.
 
 From Project Require Import Com.
 
+
+(* ----------------------------------------------------- *)
+(* We create a module to implement the commitment scheme *)
+(* ----------------------------------------------------- *)
+
 Module ComSchnorr (GP: GroupParam).
 
+(* Instantiate the Schnorr module of Nominal SSProve *)
 Module S := Schnorr GP.
 
+(* Instantiate the GroupTheorem module of Nominal SSProve *)
 Module GT := GroupTheorems GP.
+
+(* Import to bring all funtionality of above modules into current scope *)
 Import GP GT S.
 
+(* Proving that the types el and exp are inhabitated *)
 #[export] Instance Positive_el : Positive #|el|.
 Proof. apply /card_gt0P. by exists g. Qed.
 
@@ -39,6 +51,8 @@ Proof. apply /card_gt0P. by exists g. Qed.
 Proof. apply /card_gt0P. by exists 0. Qed.
 
 
+(* Instantiating our raw_sigExt record with the raw_schnorr record 
+   plus implementing sampl_challenge and key_gen *)
 Definition raw_schnorrExt : raw_sigExt := 
   {| p := raw_schnorr
 
@@ -54,10 +68,14 @@ Definition raw_schnorrExt : raw_sigExt :=
        ret (w, (fto (g ^+ otf w)))
      }
   |}.
- 
+
+(* Transforming raw_schnorrExt into a commitment scheme *) 
 Definition raw_comSchnorr : raw_com := sig_to_com raw_schnorrExt.
 
 
+(* THEOREMS *)
+
+(* Proving correctness related to the correctness and SHVZK of the Schnorr sigma protocol *)
 Theorem comSchnorr_Correct : Adv_Correct raw_comSchnorr (λ _, 0).
 Proof.
   intros A.
@@ -70,7 +88,7 @@ Proof.
 Qed.
 
 
-
+(* Proving perfect hiding - related to SHVZK of the Schnorr sigma protocol *)
 Theorem comSchnorr_Hiding : Adv_Hiding raw_comSchnorr (λ _, 0).
 Proof.
   intros A.
@@ -87,7 +105,7 @@ Proof.
 Qed.
 
 
-
+(* Proving computational binding - related to soundness of the Schnorr sigma protocol and hardness of the underlining relation *)
 Theorem comSchnorr_Binding : Adv_Binding raw_comSchnorr (λ A, AdvFor (Hardness raw_schnorrExt) (A ∘ Call_Hardness raw_schnorrExt)).
 Proof.
   intros A.

@@ -1,3 +1,4 @@
+(* Imports and settings *)
 
 Set Warnings "-notation-overridden,-ambiguous-paths".
 From mathcomp Require Import all_ssreflect all_algebra reals distr realsum
@@ -22,6 +23,14 @@ Import Num.Def Num.Theory Order.POrderTheory.
 Import PackageNotation.
 
 #[local] Open Scope ring_scope.
+
+
+
+(* ------------------------------------------------ *)
+(* Here we define a commitment scheme as the record *)
+(* raw_com. Elements are defined as choice_type and *)
+(* functions are defined as code.                   *)
+(* ------------------------------------------------ *)
 
 Record raw_com := 
   { Key : choice_type
@@ -49,6 +58,8 @@ Record raw_com :=
 #[local] Open Scope package_scope.
 
 
+(* We define notation for accessing parts of the record *)
+
 Notation " 'key p " := (Key p)
   (in custom pack_type at level 2, p constr at level 20).
 
@@ -75,157 +86,176 @@ Notation " 'opening p " := (Opening p)
 
 
 
-(* ---- Correctnes ---- *)
+(* --------------------------------- *)
+(* We now define the tree properties *)
+(* of a commitment scheme            *)
+(* --------------------------------- *)
 
+
+(* ---- CORRECTNESS ---- *)
+
+(* The identifier *)
 Definition CORRECTNESS := 5%N.
 
+(* The interface *)
 Definition ICorrect_com p := [interface #val #[ CORRECTNESS ] : ('value p) → ('bool) ].
 
-    Definition Correct_real p : 
-        game (ICorrect_com p) :=
-        [module no_locs ;
-           #def #[ CORRECTNESS ] (v : 'value p) : ('bool) 
-            {
-              k ← p.(setup) ;;
-              '(c, o) ← p.(commit) k v ;;
-              b ← p.(verify) k c v o ;;
-              ret b
+(* The real-versus-ideal games *)
+Definition Correct_real p : 
+    game (ICorrect_com p) :=
+    [module no_locs ;
+       #def #[ CORRECTNESS ] (v : 'value p) : ('bool) 
+        {
+          k ← p.(setup) ;;
+          '(c, o) ← p.(commit) k v ;;
+          b ← p.(verify) k c v o ;;
+          ret b
 
-            }
-        ].
+        }
+    ].
 
+Definition Correct_ideal p : 
+    game (ICorrect_com p) :=
+    [module no_locs ;
+       #def #[ CORRECTNESS ] (v : 'value p) : ('bool) 
+        {
+          k ← p.(setup) ;;
+          ret true
+        }
+    ].
 
-    Definition Correct_ideal p : 
-        game (ICorrect_com p) :=
-        [module no_locs ;
-           #def #[ CORRECTNESS ] (v : 'value p) : ('bool) 
-            {
-              k ← p.(setup) ;;
-              ret true
-            }
-        ].
-
+(* The game-pair *)
 Definition Correct p b :=
   if b then Correct_real p else Correct_ideal p.
 
-
+(* The advantage of the game-pair *)
 Definition Adv_Correct p (ε : adversary (ICorrect_com p) → Axioms.R) :=
   ∀ A : adversary (ICorrect_com p), AdvFor (Correct p) A <= ε A.
 
 
 
-(* ---- Hiding ---- *) 
+(* ---- HIDING ---- *) 
 
+(* The identifier *)
 Definition COMMITMENT := 2%N.
 
+(* The interface *)
 Definition ICommitment p := [interface #val #[ COMMITMENT ] : ('value p) → 'commitment p ].
 
-    Definition Hiding_real p : 
-        game (ICommitment p) := 
-        [module no_locs ;
-           #def #[ COMMITMENT ] (v : 'value p) : ('commitment p)
-            {
-              k ← p.(setup) ;;
-              '(c, o) ← p.(commit) k v ;;
-              @ret ('commitment p) c 
-            }
-        ].
+(* The real-versus-ideal games *)
+Definition Hiding_real p : 
+    game (ICommitment p) := 
+    [module no_locs ;
+       #def #[ COMMITMENT ] (v : 'value p) : ('commitment p)
+        {
+          k ← p.(setup) ;;
+          '(c, o) ← p.(commit) k v ;;
+          @ret ('commitment p) c 
+        }
+    ].
 
-    Definition Hiding_ideal p : 
-        game (ICommitment p) := 
-        [module no_locs ; 
-           #def #[ COMMITMENT ] (v : 'value p) : ('commitment p)
-            {
-              k ← p.(setup) ;;
-              u ← p.(sampl_value) ;;
-              '(c, o) ← p.(commit) k u ;;           
-              @ret ('commitment p) c 
-            }
-        ].
+Definition Hiding_ideal p : 
+    game (ICommitment p) := 
+    [module no_locs ; 
+       #def #[ COMMITMENT ] (v : 'value p) : ('commitment p)
+        {
+          k ← p.(setup) ;;
+          u ← p.(sampl_value) ;;
+          '(c, o) ← p.(commit) k u ;;           
+          @ret ('commitment p) c 
+        }
+    ].
 
-
+(* The game-pair *)
 Definition Hiding p b :=
   if b then Hiding_real p else Hiding_ideal p.
 
-
+(* The advantage of the game-pair *)
 Definition Adv_Hiding p (ε : adversary (ICommitment p) → Axioms.R) :=
   ∀ A : adversary (ICommitment p), AdvFor (Hiding p) A <= ε A.
 
 
 
-(* ---- Binding ---- *) 
+(* ---- BINDING ---- *) 
 
+(* The tuple type chBinding used as input to the games *)
 Definition chBinding p := 'commitment p × 'value p × 'opening p × 'value p × 'opening p.
 
 Notation " 'binding p " := (chBinding p) (in custom pack_type at level 2, p constr).
 
+(* The identifiers*)
 Definition BINDING := 3%N.
 Definition GET := 10%N.
 Definition INIT := 11%N.
 
+(* The location to store the key *)
 Definition key_loc p : Location := ('option 'key p; 5%N).
 
+(* The interface *)
 Definition IBinding p := [interface 
       #val #[ INIT ] : 'unit → 'unit ;
       #val #[ GET ] : 'unit → 'key p ;
       #val #[ BINDING ] : ('binding p) → 'bool ].
 
+(* The real-versus-ideal games *)
+Definition Binding_real p : 
+    game (IBinding p) := 
+      [module fset [:: key_loc p ] ;
+        #def #[ INIT ] (_ : 'unit) : ('unit) {
+          'k ← p.(setup) ;;
+          #put key_loc p := Some k ;;
+          ret tt
+        } ;
 
-    Definition Binding_real p : 
-        game (IBinding p) := 
-          [module fset [:: key_loc p ] ;
-            #def #[ INIT ] (_ : 'unit) : ('unit) {
-              'k ← p.(setup) ;;
-              #put key_loc p := Some k ;;
-              ret tt
-            } ;
+        #def #[ GET ] (_ : 'unit) : ('key p) {
+          k ← getSome key_loc p ;;
+          ret k
+        } ;
 
-            #def #[ GET ] (_ : 'unit) : ('key p) {
-              k ← getSome key_loc p ;;
-              ret k
-            } ;
+        #def #[ BINDING ] ('(c, v, o, v', o') : 'binding p) : 'bool
+        { 
+          k ← getSome key_loc p ;;
+          b ← p.(verify) k c v o ;;
+          b' ← p.(verify) k c v' o' ;; 
+          let b'' := (v != v') in
+          @ret 'bool (b && b' && b'')
 
-            #def #[ BINDING ] ('(c, v, o, v', o') : 'binding p) : 'bool
-            { 
-              k ← getSome key_loc p ;;
-              b ← p.(verify) k c v o ;;
-              b' ← p.(verify) k c v' o' ;; 
-              let b'' := (v != v') in
-              @ret 'bool (b && b' && b'')
+        }
+    ].
 
-            }
-        ].
+Definition Binding_ideal p :
+     game (IBinding p) := 
+       [module fset [:: key_loc p ] ;
+        #def #[ INIT ] (_ : 'unit) : ('unit) {
+          'k ← p.(setup) ;;
+          #put key_loc p := Some k ;;
+          ret tt
+        } ;
 
-    Definition Binding_ideal p :
-         game (IBinding p) := 
-           [module fset [:: key_loc p ] ;
-            #def #[ INIT ] (_ : 'unit) : ('unit) {
-              'k ← p.(setup) ;;
-              #put key_loc p := Some k ;;
-              ret tt
-            } ;
+        #def #[ GET ] (_ : 'unit) : ('key p) {
+          k ← getSome key_loc p ;;
+          ret k
+        } ;
 
-            #def #[ GET ] (_ : 'unit) : ('key p) {
-              k ← getSome key_loc p ;;
-              ret k
-            } ;
+        #def #[ BINDING ] ('(c, v, o, v', o') : 'binding p) : 'bool
+        {
+          k ← getSome key_loc p ;;
+          b ← p.(verify) k c v o ;;
+          b' ← p.(verify) k c v' o' ;;
+          let b'' := (v != v') in
+          @ret 'bool (false && b && b' && b'')
+        }
+    ].
 
-            #def #[ BINDING ] ('(c, v, o, v', o') : 'binding p) : 'bool
-            {
-              k ← getSome key_loc p ;;
-              b ← p.(verify) k c v o ;;
-              b' ← p.(verify) k c v' o' ;;
-              let b'' := (v != v') in
-              @ret 'bool (false && b && b' && b'')
-            }
-        ].
-
+(* The game-pair *)
 Definition Binding p b :=
   if b then Binding_real p else Binding_ideal p.
 
-
+(* The advantage of the game-pair *)
 Definition Adv_Binding p (ε : adversary (IBinding p) → Axioms.R) :=
   ∀ A : adversary (IBinding p), AdvFor (Binding p) A <= ε A.
+
+
 
 
 (* ------------------------------------- *)
@@ -233,6 +263,7 @@ Definition Adv_Binding p (ε : adversary (IBinding p) → Axioms.R) :=
 (* ------------------------------------- *)
 
 
+(* Extending the raw_sigma record with additional functionality *)
 Record raw_sigExt := 
   { p :> raw_sigma 
 
@@ -244,6 +275,7 @@ Record raw_sigExt :=
   }.
 
 
+(* Function that creates a commitment scheme from a raw_sigExt *) 
 Definition sig_to_com (p : raw_sigExt) : raw_com :=
   {| Key := p.(Statement)
    ; Value := p.(Challenge) 
@@ -273,16 +305,14 @@ Definition sig_to_com (p : raw_sigExt) : raw_com :=
   |}.
 
 
-(* Context (η : raw_sigExt).
-
-Context (sig_key_pair : (chProd (Witness η) (Statement η)) → Prop).
-Context (sig_kgen_spec : ⊢ₛ η.(key_gen) ⦃ sig_key_pair ⦄). *)
 
 
-(* ---- CORRECTNESS RELATED TO COMPLETENESS ---- *)
+(* ---- CORRECTNESS RELATED TO CORRECTNESS ---- *)
+
+
+(* REDUCTIONS *)
 
 (* Reduction module from Correctness of commitment scheme to Correctness of sigma *)
-
 Definition Call_correct_sig (p: raw_sigExt) :
   module (ICorrect p) (ICorrect_com (sig_to_com p)) := 
   [module no_locs ;
@@ -295,6 +325,10 @@ Definition Call_correct_sig (p: raw_sigExt) :
           }
   ].
 
+
+(* LEMMAS *)
+
+(* Sigma.Correct_ideal and Correct_ideal perf ind. *)
 Lemma Correct_ideal_sim_perf p :
   perfect (ICorrect_com (sig_to_com p))
     (Call_correct_sig p ∘ Sigma.Correct_ideal p) (Correct_ideal (sig_to_com p)).
@@ -312,6 +346,7 @@ Proof.
 Qed.
 
 
+(* Sigma.Correct_sim and Correct_real perf ind. *)
 Lemma Correct_real_sim_perf p :
    perfect (ICorrect_com (sig_to_com p)) 
     (Call_correct_sig p ∘ Correct_sim p) (Correct_real (sig_to_com p)).
@@ -331,8 +366,12 @@ Proof.
     destruct sim.
     apply r_ret. auto.
 Qed.
- 
 
+
+(* THEOREM *)
+
+(* Showing correctness and SHVZK og sigma protocol implies
+   correctness of commitment scheme *)
 Theorem Com_Correct_Correct:
   ∀ (p : raw_sigExt) ,
   Adv_Correct (sig_to_com p) (λ A,
@@ -353,8 +392,10 @@ Qed.
 
 (* ---- HIDING RELATED TO SHVZK ---- *)
 
-(* Reduction module with input *)
 
+(* REDUCTIONS *)
+
+(* Reduction module with input *)
 Definition Call_SHVZK_inp (p: raw_sigExt) :
   module (Transcript p) (ICommitment (sig_to_com p)) := 
   [module no_locs ;
@@ -370,7 +411,6 @@ Definition Call_SHVZK_inp (p: raw_sigExt) :
   ].
 
 (* Reduction module with sampling *)
-
 Definition Call_SHVZK_sam (p: raw_sigExt) :
   module (Transcript p) (ICommitment (sig_to_com p)) := 
   [module no_locs ;
@@ -387,8 +427,9 @@ Definition Call_SHVZK_sam (p: raw_sigExt) :
   ].
 
 
-(* Hiding_real and SHVZK_ideal perf ind. *)
+(* Lemmas *)
 
+(* Hiding_real and SHVZK_ideal perf ind. *)
 Lemma Hiding_real_SHVZK_ideal_perf p : 
   perfect (ICommitment (sig_to_com p)) 
     (Hiding_real (sig_to_com p)) (Call_SHVZK_inp p ∘ SHVZK_ideal p).
@@ -411,8 +452,6 @@ Qed.
 
 
 (* Hiding_ideal and SHVZK_ideal perf ind. *)
-
-
 Lemma Hiding_ideal_SHVZK_ideal_perf p : 
   perfect (ICommitment (sig_to_com p)) 
     (Call_SHVZK_sam p ∘ SHVZK_ideal p) (Hiding_ideal (sig_to_com p)).
@@ -437,7 +476,7 @@ Proof.
 Qed.
 
 
-
+(* Perfect indistinguishability of the reduction modules linked to SHVZK_real *)
 Lemma Red_perf (p: raw_sigExt) :
   (forall h w a s e, NoFail (response p h w a s e)) -> 
   NoFail (sampl_challenge p) ->
@@ -470,8 +509,9 @@ Proof.
 Qed.
 
 
-(* Hiding Theorem *)
+(* THEOREM *)
 
+(* Reducing the advantage of the Hiding-games to SHVZK *)
 Theorem Com_hiding_SHVZK :
   ∀ (p : raw_sigExt) ,
   (forall h w a s e, NoFail (response p h w a s e)) ->
@@ -479,7 +519,6 @@ Theorem Com_hiding_SHVZK :
   Adv_Hiding (sig_to_com p) (λ A,
     AdvFor (SHVZK p) (A ∘ Call_SHVZK_inp p) +
     AdvFor (SHVZK p) (A ∘ Call_SHVZK_sam p)).
-
 Proof.
   intros p H0 H1 A.
   nssprove_adv_trans (Call_SHVZK_inp p ∘ SHVZK_ideal p)%sep.
@@ -503,18 +542,24 @@ Qed.
 
 
 
-(* ---- BINDING RELATED TO SOUNDNESS ---- *)
+(* ---- BINDING RELATED TO SOUNDNESS AND HARDNESS OF THE RELATION ---- *)
 
+(* ---------------------------------------- *)
+(* We begin by establishing a Hardness game *)
+(* defining the hardness of a relation, R   *)
+(* ---------------------------------------- *)
 
+(* Identifier for Hardness interface *)
 Definition QUERY : nat := 12.
 
+(* The interface *)
 Notation IHardness p := [interface
   #val #[ INIT ] : 'unit → 'unit ;
   #val #[ GET ] : 'unit → 'statement p ;
   #val #[ QUERY ] : 'witness p → 'bool
 ].
 
-
+(* The Hardness game-pair - differentiated by the boolean parameter, b *)
 Definition Hardness (p: raw_sigExt) b :
   game (IHardness p) :=
   [module fset [:: key_loc (sig_to_com p) ] ;
@@ -536,6 +581,10 @@ Definition Hardness (p: raw_sigExt) b :
       }
   ].
 
+
+(* REDUCTIONS *)
+
+(* Reduction module from Binding to Soundness *)
 Definition Call_Soundness (p: raw_sigExt) :
   module (Soundness p) (IBinding (sig_to_com p)) := 
   [module fset [:: key_loc (sig_to_com p) ] ;
@@ -560,6 +609,7 @@ Definition Call_Soundness (p: raw_sigExt) :
   ].
 
 
+(* Reduction module from Binding to Hardness *)
 Definition Call_Hardness (p: raw_sigExt) :
    module (IHardness p) (IBinding (sig_to_com p)) :=
   [module no_locs ;
@@ -591,6 +641,9 @@ Definition Call_Hardness (p: raw_sigExt) :
     ].
 
 
+(* LEMMAS *)
+
+(* Binding_real and Soundness_t perf ind. *)
 Lemma Binding_real_Soundness_t_perf p :
   perfect (IBinding (sig_to_com p))
    (Binding_real (sig_to_com p)) (Call_Soundness p ∘ Special_Soundness_t p).
@@ -618,6 +671,7 @@ Proof.
 Qed.
 
 
+(* Soundness_f and Hardness true perf ind. *)
 Lemma Soundness_f_Hardness_true_perf p :
   perfect (IBinding (sig_to_com p))
    (Call_Soundness p ∘ Special_Soundness_f p) (Call_Hardness p ∘ Hardness p true).
@@ -655,6 +709,7 @@ Proof.
 Qed.
 
 
+(* Hardness false and Binding_ideal perf ind. *)
 Lemma Binding_ideal_Hardness_false_perf p :
   perfect (IBinding (sig_to_com p))
    (Call_Hardness p ∘ Hardness p false) (Binding_ideal (sig_to_com p)).
@@ -692,9 +747,9 @@ Proof.
 Qed.
 
 
-
-(* Binding Theorem *)
+(* THEOREM *)
  
+(* Reducing the advantage of the Binding-games to Soundness and Hardness *)
 Theorem Com_Binding_Soundness_Rel :
   ∀ (p : raw_sigExt) ,
   Adv_Binding (sig_to_com p) (λ A,

@@ -22,9 +22,9 @@ Definition sig_to_com (p : raw_sigExt) : raw_com :=
        ret ((h) : _)
       }
 
-   ; commit := λ k u,
+   ; commit := λ k v,
      {code
-       '(a, z) ← p.(simulate) k u ;;
+       '(a, z) ← p.(simulate) k v ;;
        ret ((a, z) : (_ × _))
      }
 
