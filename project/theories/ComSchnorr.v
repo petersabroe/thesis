@@ -51,8 +51,7 @@ Proof. apply /card_gt0P. by exists g. Qed.
 Proof. apply /card_gt0P. by exists 0. Qed.
 
 
-(* Instantiating our raw_sigExt record with the raw_schnorr record 
-   plus implementing sampl_challenge and key_gen *)
+(* Instantiating our raw_sigExt record with the raw_schnorr record plus implementing sampl_challenge and key_gen *)
 Definition raw_schnorrExt : raw_sigExt := 
   {| p := raw_schnorr
 
@@ -105,7 +104,7 @@ Proof.
 Qed.
 
 
-(* Proving computational binding - related to soundness of the Schnorr sigma protocol and hardness of the underlining relation *)
+(* Proving computational binding - related to soundness of the Schnorr sigma protocol and hardness of the underlying relation *)
 Theorem comSchnorr_Binding : Adv_Binding raw_comSchnorr (λ A, AdvFor (Hardness raw_schnorrExt) (A ∘ Call_Hardness raw_schnorrExt)).
 Proof.
   intros A.

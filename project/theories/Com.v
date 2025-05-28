@@ -86,10 +86,10 @@ Notation " 'opening p " := (Opening p)
 
 
 
-(* --------------------------------- *)
-(* We now define the tree properties *)
-(* of a commitment scheme            *)
-(* --------------------------------- *)
+(* ---------------------------------- *)
+(* We now define the three properties *)
+(* of a commitment scheme             *)
+(* ---------------------------------- *)
 
 
 (* ---- CORRECTNESS ---- *)
@@ -312,7 +312,7 @@ Definition sig_to_com (p : raw_sigExt) : raw_com :=
 
 (* REDUCTIONS *)
 
-(* Reduction module from Correctness of commitment scheme to Correctness of sigma *)
+(* Reduction module from correctness of commitment scheme to correctness of sigma protocol *)
 Definition Call_correct_sig (p: raw_sigExt) :
   module (ICorrect p) (ICorrect_com (sig_to_com p)) := 
   [module no_locs ;
@@ -370,7 +370,7 @@ Qed.
 
 (* THEOREM *)
 
-(* Showing correctness and SHVZK og sigma protocol implies
+(* Showing correctness and SHVZK of sigma protocol implies
    correctness of commitment scheme *)
 Theorem Com_Correct_Correct:
   ∀ (p : raw_sigExt) ,
@@ -409,6 +409,7 @@ Definition Call_SHVZK_inp (p: raw_sigExt) :
             
           }
   ].
+
 
 (* Reduction module with sampling *)
 Definition Call_SHVZK_sam (p: raw_sigExt) :
@@ -511,7 +512,7 @@ Qed.
 
 (* THEOREM *)
 
-(* Reducing the advantage of the Hiding-games to SHVZK *)
+(* Reducing the advantage of the Hiding-games to SHVZK of sigma protocol *)
 Theorem Com_hiding_SHVZK :
   ∀ (p : raw_sigExt) ,
   (forall h w a s e, NoFail (response p h w a s e)) ->
@@ -749,7 +750,7 @@ Qed.
 
 (* THEOREM *)
  
-(* Reducing the advantage of the Binding-games to Soundness and Hardness *)
+(* Reducing the advantage of the Binding-games to soundness of the sigma protocol and hardness of the underlying relation *)
 Theorem Com_Binding_Soundness_Rel :
   ∀ (p : raw_sigExt) ,
   Adv_Binding (sig_to_com p) (λ A,
